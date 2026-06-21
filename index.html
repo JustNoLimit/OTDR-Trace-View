@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>OTDR Measurement Tool</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+:root {
+  --bg: #f5f7fa; --bg-card: #fff; --bg-input: #f0f2f5;
+  --text: #1a1a2e; --text-secondary: #555;
+  --border: #ddd; --accent: #2563eb; --accent-hover: #1d4ed8;
+  --tab-active-bg: #2563eb; --tab-active-text: #fff;
+  --tab-bg: #e5e7eb; --tab-text: #374151;
+  --chart-grid: #e5e7eb; --chart-line: #2563eb;
+  --success: #16a34a; --warning: #d97706; --danger: #dc2626;
+  --shadow: 0 1px 3px rgba(0,0,0,0.1);
+  --radius: 8px;
+}
+[data-theme="dark"] {
+  --bg: #0f172a; --bg-card: #1e293b; --bg-input: #334155;
+  --text: #e2e8f0; --text-secondary: #94a3b8;
+  --border: #334155; --accent: #3b82f6; --accent-hover: #60a5fa;
+  --tab-active-bg: #3b82f6; --tab-active-text: #fff;
+  --tab-bg: #1e293b; --tab-text: #94a3b8;
+  --chart-grid: #334155; --chart-line: #60a5fa;
+  --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s}
+.app{max-width:1200px;margin:0 auto;padding:16px}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px}
+header h1{font-size:20px;font-weight:700}
+.theme-toggle{background:var(--bg-input);border:none;color:var(--text);padding:8px 16px;border-radius:20px;cursor:pointer;font-size:14px;display:flex;align-items:center;gap:6px}
+.theme-toggle:hover{opacity:.85}
+.tabs{display:flex;gap:4px;background:var(--bg-card);border-radius:var(--radius);padding:4px;box-shadow:var(--shadow);margin-bottom:16px}
+.tab-btn{padding:10px 20px;border:none;background:transparent;color:var(--tab-text);border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;flex:1;text-align:center;transition:all .2s}
+.tab-btn:hover{background:var(--tab-bg)}
+.tab-btn.active{background:var(--tab-active-bg);color:var(--tab-active-text)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.card{background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.card h2{font-size:16px;font-weight:600;margin-bottom:12px;color:var(--text)}
+.card h3{font-size:14px;font-weight:600;margin-bottom:8px;color:var(--text-secondary)}
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg-input)}
+.upload-zone:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 5%,var(--bg-input))}
+.upload-zone.dragover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--bg-input))}
+.upload-zone p{color:var(--text-secondary);margin-top:8px;font-size:14px}
+.upload-zone .icon{font-size:36px;display:block;margin-bottom:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;transition:all .2s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-success{background:var(--success);color:#fff}
+.btn-success:hover{opacity:.9}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover{opacity:.9}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-outline:hover{background:var(--bg-input)}
+.btn-sm{padding:4px 12px;font-size:12px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)}
+th{font-weight:600;color:var(--text-secondary);font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+tr:hover{background:color-mix(in srgb,var(--accent) 3%,transparent)}
+.param-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.param-item{padding:6px 0}
+.param-label{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px}
+.param-value{font-size:14px;font-weight:500;margin-top:2px}
+.chart-container{position:relative;width:100%;max-height:400px}
+.chart-container canvas{width:100%!important}
+.file-list{list-style:none}
+.file-item{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);font-size:14px}
+.file-item .status{font-size:12px;padding:2px 8px;border-radius:10px}
+.status-pending{background:var(--bg-input);color:var(--text-secondary)}
+.status-processing{background:var(--warning);color:#fff}
+.status-done{background:var(--success);color:#fff}
+.status-error{background:var(--danger);color:#fff}
+.progress-bar{height:6px;background:var(--bg-input);border-radius:3px;overflow:hidden;margin:8px 0}
+.progress-bar .fill{height:100%;background:var(--accent);border-radius:3px;transition:width .3s;width:0%}
+.control-group{margin-bottom:16px}
+.control-group label{display:block;font-size:13px;font-weight:500;margin-bottom:4px;color:var(--text)}
+.control-group input,.control-group select{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text);font-size:14px}
+.control-group input[type="range"]{padding:0;border:none;background:transparent}
+.control-group .range-value{font-size:12px;color:var(--text-secondary);margin-top:2px}
+.event-row{display:grid;grid-template-columns:1fr 120px 80px 80px 40px;gap:4px;align-items:center;margin-bottom:4px;font-size:13px}
+.event-row input,.event-row select{width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input);color:var(--text);font-size:12px}
+.event-row .del-btn{background:var(--danger);color:#fff;border:none;border-radius:4px;cursor:pointer;padding:4px 6px;font-size:12px}
+.event-row .del-btn:hover{opacity:.85}
+.event-row .fixed-val{font-size:12px;color:var(--text-secondary);text-align:center;padding:4px}
+.chart-wrapper{position:relative;width:100%}
+.mb-8{margin-bottom:8px}
+.mb-16{margin-bottom:16px}
+.mt-8{margin-top:8px}
+.mt-16{margin-top:16px}
+.flex{display:flex}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.gap-8{gap:8px}
+.gap-16{gap:16px}
+.text-center{text-align:center}
+.text-secondary{color:var(--text-secondary)}
+.text-sm{font-size:13px}
+#pdf-render-area{position:fixed;top:-9999px;left:-9999px;width:800px;background:#fff;color:#000;padding:30px;z-index:-1}
+#pdf-render-area table{color:#000;border-color:#ccc}
+#pdf-render-area .chart-container{width:740px;height:280px}
+#pdf-render-area h2{color:#1a1a2e}
+#pdf-render-area .text-secondary{color:#666}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>OTDR Measurement Tool</h1>
+    <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">&#9790; Dark Mode</button>
+  </header>
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab="tab1" role="tab">Single Viewer</button>
+    <button class="tab-btn" data-tab="tab2" role="tab">Bulk Converter</button>
+    <button class="tab-btn" data-tab="tab3" role="tab">Fake Trace Creator</button>
+  </div>
+
+  <!-- TAB 1: Single Viewer -->
+  <div class="tab-content active" id="tab1">
+    <div class="card">
+      <div class="upload-zone" id="singleUploadZone">
+        <span class="icon">&#128196;</span>
+        <p><strong>Click to upload</strong> or drag & drop a .sor file</p>
+        <p class="text-secondary text-sm mt-8">Supports Bellcore SR-4731 (.sor) format &mdash; files stay on your device</p>
+        <input type="file" id="singleFileInput" accept=".sor" style="display:none">
+      </div>
+    </div>
+    <div id="singleResults" style="display:none">
+      <div class="card">
+        <div class="flex-between mb-8">
+          <h2>OTDR Trace</h2>
+          <button class="btn btn-primary" id="exportPdf1">Export as PDF</button>
+        </div>
+        <div class="chart-wrapper">
+          <div class="chart-container"><canvas id="singleChart"></canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Measurement Parameters</h2>
+        <div class="param-grid" id="singleParams"></div>
+      </div>
+      <div class="card">
+        <h2>Events</h2>
+        <div style="overflow-x:auto"><table id="singleEventsTable"><thead><tr><th>#</th><th>Distance</th><th>Type</th><th>Splice Loss</th><th>Reflectance</th><th>Comments</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: Bulk Converter -->
+  <div class="tab-content" id="tab2">
+    <div class="card">
+      <div class="upload-zone" id="bulkUploadZone">
+        <span class="icon">&#128230;</span>
+        <p><strong>Click to upload</strong> or drag & drop multiple .sor files</p>
+        <p class="text-secondary text-sm mt-8">Each file is parsed locally and exported as PDF &mdash; nothing is uploaded</p>
+        <input type="file" id="bulkFileInput" accept=".sor" multiple style="display:none">
+      </div>
+    </div>
+    <div id="bulkResults" style="display:none">
+      <div class="card">
+        <div class="flex-between mb-8">
+          <h2>Files <span id="bulkCount">(0)</span></h2>
+          <button class="btn btn-success" id="downloadZipBtn" disabled>Download ZIP</button>
+        </div>
+        <div class="progress-bar" id="bulkProgress" style="display:none"><div class="fill" id="bulkProgressFill"></div></div>
+        <ul class="file-list" id="bulkFileList"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: Fake Trace Creator -->
+  <div class="tab-content" id="tab3">
+    <div class="grid-2">
+      <div>
+        <div class="card">
+          <h2>Parameters</h2>
+          <div class="control-group">
+            <label>Preset</label>
+            <select id="presetSelect"><option value="custom">Custom</option><option value="betweenBoxes">Between 2 Boxes</option><option value="liveFiber">Live Fiber (Customer)</option></select>
+          </div>
+          <div class="control-group">
+            <label>Fiber Length: <span id="lengthVal">0.5</span> km</label>
+            <input type="range" id="fiberLength" min="0.01" max="50" step="0.005" value="0.5">
+          </div>
+          <div class="control-group">
+            <label>Attenuation: <span id="attenVal">0.35</span> dB/km</label>
+            <input type="range" id="fiberAtten" min="0.15" max="0.50" step="0.005" value="0.35">
+          </div>
+          <div class="control-group">
+            <label>Noise Level: <span id="noiseVal">0.03</span></label>
+            <input type="range" id="noiseLevel" min="0" max="0.2" step="0.0005" value="0.03">
+          </div>
+          <div class="control-group">
+            <label>Resolution: <span id="resVal">0.5</span> m</label>
+            <input type="range" id="traceResolution" min="0.1" max="5" step="0.05" value="0.5">
+          </div>
+        </div>
+        <div class="card">
+          <div class="flex-between mb-8">
+            <h2>Events</h2>
+            <div class="flex gap-8">
+              <button class="btn btn-outline btn-sm" onclick="randomizeEvents()">Randomize</button>
+              <button class="btn btn-primary btn-sm" onclick="addEvent()">+ Add</button>
+            </div>
+          </div>
+          <div id="eventsEditor"></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="flex-between mb-8">
+            <h2>Preview</h2>
+            <button class="btn btn-primary" id="exportPdf3">Export as PDF</button>
+          </div>
+          <div class="chart-wrapper">
+            <div class="chart-container"><canvas id="fakeChart"></canvas></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Trace Summary</h2>
+          <div class="param-grid" id="fakeSummary"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden PDF render area -->
+<div id="pdf-render-area">
+  <div style="border-bottom:2px solid #2563eb;padding-bottom:10px;margin-bottom:16px;position:relative">
+    <div style="position:absolute;top:0;right:0;display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#16a34a"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#16a34a;color:#fff;font-size:13px;line-height:1">&#10003;</span>PASS</div>
+    <h2 style="font-size:18px;margin:0">OTDR Measurement Report</h2>
+    <div style="font-size:12px;color:#666;margin-top:4px">Generated on <span id="pdfDate"></span> <span id="pdfSubtitle"></span></div>
+  </div>
+  <div class="chart-container" id="pdfChartContainer" style="width:740px;height:280px;margin-bottom:16px">
+    <canvas id="pdfChart" width="740" height="280"></canvas>
+  </div>
+  <h3 style="font-size:14px;margin-bottom:6px;color:#1a1a2e">Measurement Parameters</h3>
+  <div class="param-grid" id="pdfParams" style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:16px;font-size:12px"></div>
+  <h3 style="font-size:14px;margin-bottom:6px;color:#1a1a2e">Events</h3>
+  <table id="pdfEventsTable" style="font-size:11px">
+    <thead><tr><th>#</th><th>Distance</th><th>Type</th><th>Splice Loss</th><th>Reflectance</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script type="module">
+const SOR_CDN = 'https://cdn.jsdelivr.net/npm/sor-reader@1.0.0/dist/browser.js';
+const SorReader = await import(SOR_CDN);
+const { parseSor, VERSION } = SorReader;
+
+const state = {
+  singleResult: null, singleFilename: '',
+  bulkFiles: [], bulkPdfs: [],
+  fakeEvents: [],
+  fakeChart: null, singleChart: null, pdfChart: null,
+  isDark: localStorage.getItem('otdrTheme') === 'dark',
+};
+
+const EVENT_TYPES = {
+  splice: { label: 'Splice', hasRefl: false, defaultLoss() { return rnd(0.1,0.5); }, defaultRefl: 0 },
+  connector: { label: 'Connector', hasRefl: true, defaultLoss() { return rnd(0.3,0.5); }, defaultRefl: -40 },
+  splitter2: { label: 'Splitter 1:2', hasRefl: false, defaultLoss: 3.8, defaultRefl: 0 },
+  splitter4: { label: 'Splitter 1:4', hasRefl: false, defaultLoss: 7.2, defaultRefl: 0 },
+  splitter8: { label: 'Splitter 1:8', hasRefl: false, defaultLoss: 10.8, defaultRefl: 0 },
+  splitter16: { label: 'Splitter 1:16', hasRefl: false, defaultLoss: 13.8, defaultRefl: 0 },
+  splitter32: { label: 'Splitter 1:32', hasRefl: false, defaultLoss: 17.2, defaultRefl: 0 },
+  end: { label: 'End / OLT', hasRefl: true, defaultLoss: 0, defaultRefl: -14 },
+  break: { label: 'Fiber Break', hasRefl: true, defaultLoss: 0, defaultRefl: -30 },
+};
+
+function gaussRand() { let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function fmtDist(km) { return km < 1 ? (km*1000).toFixed(1)+' m' : km.toFixed(4)+' km'; }
+function fmtDistAxis(dists) { const mx=Math.max(...dists); return dists.map(d=>mx<20?(d*1000).toFixed(0)+' m':d.toFixed(3)+' km'); }
+function fmtVal(v) { return (v===undefined||v===null||v==='')?'—':v; }
+function rnd(a,b) { return a+Math.random()*(b-a); }
+
+function getThemeColors() {
+  const d = document.documentElement.getAttribute('data-theme')==='dark';
+  return { grid: d?'#334155':'#e5e7eb', line: d?'#60a5fa':'#2563eb', text: d?'#94a3b8':'#666' };
+}
+
+// === Theme ===
+function toggleTheme() {
+  state.isDark = !state.isDark;
+  document.documentElement.setAttribute('data-theme', state.isDark?'dark':'light');
+  localStorage.setItem('otdrTheme', state.isDark?'dark':'light');
+  document.getElementById('themeBtn').innerHTML = state.isDark?'\u2600 Light Mode':'\u263E Dark Mode';
+  [state.singleChart, state.fakeChart, state.pdfChart].filter(Boolean).forEach(c => {
+    const cl = getThemeColors();
+    c.options.scales.x.grid.color=cl.grid; c.options.scales.y.grid.color=cl.grid;
+    c.options.scales.x.ticks.color=cl.text; c.options.scales.y.ticks.color=cl.text;
+    c.data.datasets[0].borderColor=cl.line;
+    c.update();
+  });
+}
+window.toggleTheme = toggleTheme;
+
+// === Tab Switching ===
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click',()=>{
+  document.querySelectorAll('.tab-btn,.tab-content').forEach(e=>e.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById(b.dataset.tab).classList.add('active');
+  if(b.dataset.tab==='tab3') renderFakeTrace();
+}));
+
+// === Chart Config ===
+function chartConfig(labels, data, events, colors, rawDists) {
+  return {
+    type:'line', data:{labels, datasets:[{label:'OTDR Trace',data,borderColor:colors.line,borderWidth:1.5,pointRadius:0,tension:0.1,fill:false}]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:{duration:200},
+      interaction:{mode:'nearest',axis:'x',intersect:false},
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{title:items=>{const d=rawDists?rawDists[items[0].dataIndex]:0;return 'Distance: '+fmtDist(d);},label:item=>'Power: '+parseFloat(item.raw).toFixed(2)+' dB'}}
+      },
+      scales:{
+        x:{title:{display:true,text:'Distance',color:colors.text},grid:{color:colors.grid},ticks:{color:colors.text,maxTicksLimit:12}},
+        y:{title:{display:true,text:'Power (dB)',color:colors.text},grid:{color:colors.grid},ticks:{color:colors.text}}
+      }
+    },
+    plugins:[{
+      id:'eventMarkers', afterDraw(chart){
+        if(!events||!events.length) return;
+        const ctx=chart.ctx, xA=chart.scales.x, yA=chart.scales.y;
+        events.forEach(ev=>{
+          const x=xA.getPixelForValue(ev.distance);
+          if(x<xA.left||x>xA.right) return;
+          ctx.save(); ctx.setLineDash([4,4]);
+          ctx.strokeStyle=ev.refl?'#dc2626':'#16a34a'; ctx.lineWidth=1;
+          ctx.beginPath(); ctx.moveTo(x,yA.top); ctx.lineTo(x,yA.bottom); ctx.stroke(); ctx.restore();
+          ctx.save(); ctx.fillStyle=ev.refl?'#dc2626':'#16a34a';
+          ctx.font='9px sans-serif'; ctx.textAlign='center';
+          ctx.fillText(ev.label,x,yA.top+10); ctx.restore();
+        });
+      }
+    }]
+  };
+}
+
+// === PDF Generation ===
+async function generatePdf(filename, trace, params, events, title) {
+  const area = document.getElementById('pdf-render-area');
+  document.getElementById('pdfDate').textContent = new Date().toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('pdfSubtitle').innerHTML = title;
+  document.getElementById('pdfParams').innerHTML = params.map(p=>'<div><span style="font-size:10px;color:#666;text-transform:uppercase">'+p.label+'</span><div style="font-size:13px;font-weight:500">'+fmtVal(p.value)+'</div></div>').join('');
+  const tb = document.querySelector('#pdfEventsTable tbody');
+  tb.innerHTML = events.map((e,i)=>'<tr><td>'+(i+1)+'</td><td>'+fmtDist(e.distance)+'</td><td>'+e.type+'</td><td>'+fmtVal(e.loss)+'</td><td>'+fmtVal(e.refl)+'</td></tr>').join('');
+
+  const data = trace.map(p=>p.power);
+  const labels = fmtDistAxis(trace.map(p=>p.distance));
+  const evts = events.map((e,i)=>({distance:e.distance, refl:!!(e.refl&&e.refl!=='—'&&e.refl!==0), label:e.type}));
+  const colors = {grid:'#e5e7eb', line:'#2563eb', text:'#666'};
+
+  area.style.display='block'; area.offsetHeight;
+  const canvas = document.getElementById('pdfChart');
+  if(state.pdfChart){state.pdfChart.destroy();state.pdfChart=null;}
+  state.pdfChart = new Chart(canvas, chartConfig(labels,data,evts,colors, trace.map(p=>p.distance)));
+  await new Promise(r=>setTimeout(r,300));
+
+  const captured = await html2canvas(area,{scale:2,useCORS:true,logging:false,backgroundColor:'#ffffff',width:800,height:area.scrollHeight});
+  state.pdfChart.destroy(); state.pdfChart=null; area.style.display='none';
+
+  const imgData = captured.toDataURL('image/jpeg',0.95);
+  const pdf = new jspdf.jsPDF('p','mm','a4');
+  const pw=190, ph=(captured.height/captured.width)*pw;
+  if(ph>277){
+    const pageH=277, ratio=captured.width/captured.height;
+    let remain=captured.height, srcY=0, pn=0;
+    while(remain>0){
+      const sh=Math.min(remain,pageH/ratio);
+      const sc = document.createElement('canvas'); sc.width=captured.width; sc.height=sh;
+      sc.getContext('2d').drawImage(captured,0,srcY,captured.width,sh,0,0,captured.width,sh);
+      if(pn>0) pdf.addPage();
+      pdf.addImage(sc.toDataURL('image/jpeg',0.95),'JPEG',10,10,pw,(sh/captured.width)*pw);
+      srcY+=sh; remain-=sh; pn++;
+    }
+  } else {
+    pdf.addImage(imgData,'JPEG',10,10,pw,ph);
+  }
+  return pdf;
+}
+
+// === TAB 1: Single Viewer ===
+const sz = document.getElementById('singleUploadZone'), si = document.getElementById('singleFileInput');
+sz.addEventListener('click',()=>si.click());
+sz.addEventListener('dragover',e=>{e.preventDefault();sz.classList.add('dragover')});
+sz.addEventListener('dragleave',()=>sz.classList.remove('dragover'));
+sz.addEventListener('drop',e=>{e.preventDefault();sz.classList.remove('dragover');if(e.dataTransfer.files[0])handleSingleFile(e.dataTransfer.files[0])});
+si.addEventListener('change',()=>{if(si.files[0])handleSingleFile(si.files[0])});
+
+async function handleSingleFile(file) {
+  try {
+    const buf=await file.arrayBuffer(), data=new Uint8Array(buf);
+    const r=parseSor(data,file.name);
+    state.singleResult=r; state.singleFilename=file.name;
+    displaySingle(r);
+  } catch(e){ document.getElementById('singleResults').style.display='none'; alert('Parse error: '+e.message); }
+}
+
+function displaySingle(r) {
+  const fp=r.FxdParams||{}, gp=r.GenParams||{}, sp=r.SupParams||{}, ke=r.KeyEvents||{};
+  document.getElementById('singleResults').style.display='block';
+  document.getElementById('singleParams').innerHTML = [
+    ['File',r.filename],['SOR Version','v'+r.version],['Date/Time',fp['date/time']],['Wavelength',fp.wavelength],
+    ['Range',fp.range?parseInt(fp.range)+' km':''],['Resolution',fp.resolution?parseFloat(fp.resolution).toFixed(3)+' m':''],['Pulse Width',fp['pulse width']],['IOR',fp.index],
+    ['Cable ID',gp['cable ID']],['Fiber ID',gp['fiber ID']],['Location A',gp['location A']],['Location B',gp['location B']],
+    ['Operator',gp.operator],['OTDR',sp.OTDR],['Supplier',sp.supplier],['Averages',fp['num averages']]
+  ].map(([l,v])=>'<div class="param-item"><div class="param-label">'+l+'</div><div class="param-value">'+fmtVal(v)+'</div></div>').join('');
+
+  const evts=[];
+  if(ke['num events']>0) for(let i=1;i<=ke['num events'];i++){const e=ke['event '+i];if(e)evts.push(e);}
+  document.querySelector('#singleEventsTable tbody').innerHTML = evts.length
+    ? evts.map((e,i)=>'<tr><td>'+(i+1)+'</td><td>'+fmtDist(parseFloat(e.distance))+'</td><td>'+(e.type||'—')+'</td><td>'+fmtVal(e['splice loss'])+' dB</td><td>'+fmtVal(e['refl loss'])+' dB</td><td>'+fmtVal(e.comments)+'</td></tr>').join('')
+    : '<tr><td colspan="6" class="text-center text-secondary">No events detected</td></tr>';
+
+  const c=getThemeColors(), labs=fmtDistAxis(r.trace.map(p=>p.distance)), dat=r.trace.map(p=>p.power);
+  const markers=[];
+  if(ke['num events']>0) for(let i=1;i<=ke['num events'];i++){const e=ke['event '+i];if(e)markers.push({distance:parseFloat(e.distance),refl:parseFloat(e['refl loss'])<0,label:e.type||'E'+i});}
+  if(state.singleChart)state.singleChart.destroy();
+  state.singleChart = new Chart(document.getElementById('singleChart'), chartConfig(labs,dat,markers,c, r.trace.map(p=>p.distance)));
+}
+
+document.getElementById('exportPdf1').addEventListener('click',async()=>{
+  if(!state.singleResult)return;
+  const b=document.getElementById('exportPdf1'); b.disabled=true; b.textContent='Generating...';
+  try{
+    const r=state.singleResult, fp=r.FxdParams||{}, gp=r.GenParams||{}, ke=r.KeyEvents||{};
+    const params=[
+      ['Date/Time',fp['date/time']],['Wavelength',fp.wavelength],['Range',fp.range?parseInt(fp.range)+' km':''],['Pulse Width',fp['pulse width']],
+      ['IOR',fp.index],['Resolution',fp.resolution?parseFloat(fp.resolution).toFixed(3)+' m':''],['Cable ID',gp['cable ID']],['Fiber ID',gp['fiber ID']],
+      ['Location A',gp['location A']],['Location B',gp['location B']],['Operator',gp.operator],['OTDR',(r.SupParams||{}).OTDR]
+    ].map(([l,v])=>({label:l,value:v}));
+    const evts=[];
+    if(ke['num events']>0) for(let i=1;i<=ke['num events'];i++){const e=ke['event '+i];if(e)evts.push({distance:parseFloat(e.distance),type:e.type||'—',loss:e['splice loss'],refl:e['refl loss']});}
+    const pdf=await generatePdf(r.filename,r.trace,params,evts,'');
+    pdf.save(r.filename.replace(/\.sor$/i,'')+'_report.pdf');
+  }catch(e){alert('PDF failed: '+e.message)}
+  b.disabled=false;b.textContent='Export as PDF';
+});
+
+// === TAB 2: Bulk Converter ===
+const bz=document.getElementById('bulkUploadZone'),bi=document.getElementById('bulkFileInput');
+bz.addEventListener('click',()=>bi.click());
+bz.addEventListener('dragover',e=>{e.preventDefault();bz.classList.add('dragover')});
+bz.addEventListener('dragleave',()=>bz.classList.remove('dragover'));
+bz.addEventListener('drop',e=>{e.preventDefault();bz.classList.remove('dragover');if(e.dataTransfer.files.length)handleBulk(e.dataTransfer.files);});
+bi.addEventListener('change',()=>{if(bi.files.length)handleBulk(bi.files);});
+
+async function handleBulk(fl) {
+  state.bulkFiles=Array.from(fl).filter(f=>f.name.toLowerCase().endsWith('.sor'));
+  state.bulkPdfs=[];
+  if(!state.bulkFiles.length){alert('No .sor files.');return;}
+  document.getElementById('bulkResults').style.display='block';
+  const list=document.getElementById('bulkFileList');
+  list.innerHTML=state.bulkFiles.map((f,i)=>'<li class="file-item" data-idx="'+i+'"><span>'+f.name+' ('+(f.size/1024).toFixed(1)+' KB)</span><span class="status status-pending">Pending</span></li>').join('');
+  document.getElementById('bulkCount').textContent='('+state.bulkFiles.length+')';
+  document.getElementById('downloadZipBtn').disabled=true;
+  const prog=document.getElementById('bulkProgress'), fill=document.getElementById('bulkProgressFill');
+  prog.style.display='block';
+
+  for(let i=0;i<state.bulkFiles.length;i++){
+    const file=state.bulkFiles[i], item=list.querySelector('[data-idx="'+i+'"]'), st=item.querySelector('.status');
+    st.className='status status-processing'; st.textContent='Processing...';
+    fill.style.width=((i/state.bulkFiles.length)*100)+'%';
+    try{
+      const buf=await file.arrayBuffer(), data=new Uint8Array(buf), r=parseSor(data,file.name);
+      const fp=r.FxdParams||{}, gp=r.GenParams||{}, ke=r.KeyEvents||{};
+      const params=[
+        ['Date/Time',fp['date/time']],['Wavelength',fp.wavelength],['Range',fp.range?parseInt(fp.range)+' km':''],['Pulse Width',fp['pulse width']],
+        ['IOR',fp.index],['Resolution',fp.resolution?parseFloat(fp.resolution).toFixed(3)+' m':''],['Cable ID',gp['cable ID']],['Fiber ID',gp['fiber ID']],
+        ['Location A',gp['location A']],['Location B',gp['location B']],['Operator',gp.operator],['OTDR',(r.SupParams||{}).OTDR]
+      ].map(([l,v])=>({label:l,value:v}));
+      const evts=[];
+      if(ke['num events']>0) for(let j=1;j<=ke['num events'];j++){const e=ke['event '+j];if(e)evts.push({distance:parseFloat(e.distance),type:e.type||'—',loss:e['splice loss'],refl:e['refl loss']});}
+      const pdf=await generatePdf(file.name,r.trace,params,evts,'');
+      state.bulkPdfs.push({name:file.name.replace(/\.sor$/i,'')+'.pdf',pdf});
+      st.className='status status-done'; st.textContent='Done';
+    }catch(e){st.className='status status-error'; st.textContent='Error';}
+    fill.style.width=(((i+1)/state.bulkFiles.length)*100)+'%';
+    await new Promise(r=>setTimeout(r,50));
+  }
+  setTimeout(()=>{prog.style.display='none'},1000);
+  document.getElementById('downloadZipBtn').disabled=state.bulkPdfs.length===0;
+}
+
+document.getElementById('downloadZipBtn').addEventListener('click',async()=>{
+  if(!state.bulkPdfs.length)return;
+  const b=document.getElementById('downloadZipBtn'); b.disabled=true;b.textContent='Zipping...';
+  try{
+    const zip=new JSZip();
+    for(const item of state.bulkPdfs) zip.file(item.name, item.pdf.output('blob'));
+    const blob=await zip.generateAsync({type:'blob'}), url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='otdr_reports.zip';a.click();
+    URL.revokeObjectURL(url);
+  }catch(e){alert('ZIP failed: '+e.message)}
+  b.disabled=false;b.textContent='Download ZIP';
+});
+
+// === TAB 3: Fake Trace Creator ===
+const sliderSpanMap={fiberLength:'lengthVal',fiberAtten:'attenVal',noiseLevel:'noiseVal',traceResolution:'resVal'};
+['fiberLength','fiberAtten','noiseLevel','traceResolution'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener('input',()=>{
+    const valEl=document.getElementById(sliderSpanMap[id]);
+    if(valEl){const v=parseFloat(el.value); valEl.textContent=v.toFixed(id==='traceResolution'?1:id==='fiberLength'?2:id==='noiseLevel'?3:2);}
+    renderFakeTrace();
+  });
+});
+
+document.getElementById('presetSelect').addEventListener('change',()=>{
+  const v=document.getElementById('presetSelect').value;
+  if(v==='custom')return;
+  state.fakeEvents = v==='betweenBoxes' ? genBetweenBoxes() : genLiveFiber();
+  const md=Math.max(...state.fakeEvents.map(e=>e.distance));
+  const len=Math.min(Math.ceil(md*1.1*100)/100,50);
+  document.getElementById('fiberLength').value=len; document.getElementById('lengthVal').textContent=len.toFixed(2);
+  renderEventsEditor(); renderFakeTrace();
+});
+
+function genBetweenBoxes() {
+  const d=rnd(0.002,0.05);
+  return [
+    {distance:0,type:'splice',loss:rnd(0.1,0.5),reflectance:0},
+    {distance:0,type:'connector',loss:rnd(0.3,0.5),reflectance:rnd(-50,-35)},
+    {distance:d,type:'splice',loss:rnd(0.1,0.5),reflectance:0},
+    {distance:d,type:'connector',loss:rnd(0.3,0.5),reflectance:rnd(-50,-35)},
+    {distance:d+0.003,type:'end',loss:0,reflectance:rnd(-16,-12)},
+  ];
+}
+
+function genLiveFiber() {
+  const dl=rnd(0.005,0.03), fb=rnd(0.002,0.02), bmo=dl+fb, bep=bmo+0.002, cb=bep+rnd(0.05,0.3), isp=cb+rnd(1.2,1.5);
+  return [
+    {distance:dl,type:'connector',loss:rnd(0.3,0.5),reflectance:rnd(-48,-36)},
+    {distance:dl+0.001,type:'splice',loss:rnd(0.1,0.5),reflectance:0},
+    {distance:bmo,type:'connector',loss:rnd(0.3,0.5),reflectance:rnd(-48,-36)},
+    {distance:bep,type:'splitter8',loss:10.8,reflectance:0},
+    {distance:bep+0.001,type:'splice',loss:rnd(0.1,0.5),reflectance:0},
+    {distance:cb,type:'splice',loss:rnd(0.1,0.5),reflectance:0},
+    {distance:cb+0.001,type:'splitter8',loss:10.8,reflectance:0},
+    {distance:cb+0.002,type:'splice',loss:rnd(0.1,0.5),reflectance:0},
+    {distance:isp,type:'end',loss:0,reflectance:rnd(-16,-12)},
+  ];
+}
+
+function addEvent() {
+  state.fakeEvents.push({distance:0.1,type:'splice',loss:0.15,reflectance:0});
+  renderEventsEditor(); renderFakeTrace();
+}
+window.addEvent=addEvent;
+
+function removeEvent(idx) {
+  state.fakeEvents.splice(idx,1);
+  renderEventsEditor(); renderFakeTrace();
+}
+window.removeEvent=removeEvent;
+
+function randomizeEvents() {
+  const pick=['betweenBoxes','liveFiber'][Math.floor(Math.random()*2)];
+  document.getElementById('presetSelect').value=pick;
+  state.fakeEvents=pick==='betweenBoxes'?genBetweenBoxes():genLiveFiber();
+  const md=Math.max(...state.fakeEvents.map(e=>e.distance));
+  const len=Math.min(Math.ceil(md*1.1*100)/100,50);
+  document.getElementById('fiberLength').value=len; document.getElementById('lengthVal').textContent=len.toFixed(2);
+  renderEventsEditor(); renderFakeTrace();
+}
+window.randomizeEvents=randomizeEvents;
+
+function updateEvent(idx,field,value) {
+  if(!state.fakeEvents[idx])return;
+  state.fakeEvents[idx][field]=value;
+  // If type changes, update loss/refl defaults
+  if(field==='type'){
+    const t=EVENT_TYPES[value]||EVENT_TYPES.splice;
+    const dl=typeof t.defaultLoss==='function'?t.defaultLoss():t.defaultLoss;
+    state.fakeEvents[idx].loss=dl; state.fakeEvents[idx].reflectance=t.defaultRefl;
+    renderEventsEditor();
+  }
+  renderFakeTrace();
+}
+window.updateEvent=updateEvent;
+
+function renderEventsEditor() {
+  const c=document.getElementById('eventsEditor');
+  if(!state.fakeEvents.length){c.innerHTML='<p class="text-secondary text-sm">No events. Click "Randomize" or "+ Add" to get started.</p>';return;}
+  const to=Object.entries(EVENT_TYPES).map(([k,v])=>'<option value="'+k+'">'+v.label+'</option>').join('');
+  const isFixed=e=>e.type==='splice'||e.type==='connector'||e.type.startsWith('splitter');
+  c.innerHTML='<div class="event-row" style="font-size:11px;color:var(--text-secondary);font-weight:600"><span>Distance (km)</span><span>Type</span><span>Loss</span><span>Refl</span><span></span></div>'+
+    state.fakeEvents.map((e,i)=>{
+      const t=EVENT_TYPES[e.type]||EVENT_TYPES.splice;
+      return '<div class="event-row">'+
+        '<input type="number" step="0.001" min="0" value="'+e.distance.toFixed(4)+'" onchange="updateEvent('+i+',\'distance\',parseFloat(this.value)||0)">'+
+        '<select onchange="updateEvent('+i+',\'type\',this.value)">'+to.replace('value="'+e.type+'"','value="'+e.type+'" selected')+'</select>'+
+        (isFixed(e)?'<span class="fixed-val">'+parseFloat(e.loss).toFixed(2)+'</span>':'<input type="number" step="0.01" value="'+e.loss+'" onchange="updateEvent('+i+',\'loss\',parseFloat(this.value)||0)">')+
+        (isFixed(e)?'<span class="fixed-val">'+(t.hasRefl?parseFloat(e.reflectance).toFixed(1):'—')+'</span>':'<input type="number" step="0.1" value="'+e.reflectance+'" onchange="updateEvent('+i+',\'reflectance\',parseFloat(this.value)||0)"'+(t.hasRefl?'':' disabled')+'>')+
+        '<button class="del-btn" onclick="removeEvent('+i+')">'+String.fromCharCode(10005)+'</button></div>';
+    }).join('');
+}
+
+function genTrace() {
+  const len=parseFloat(document.getElementById('fiberLength').value);
+  const atten=parseFloat(document.getElementById('fiberAtten').value);
+  const noise=parseFloat(document.getElementById('noiseLevel').value);
+  const res=parseFloat(document.getElementById('traceResolution').value)/1000;
+  const events=state.fakeEvents.filter(e=>e.distance>=0).sort((a,b)=>a.distance-b.distance);
+  const pts=Math.max(2,Math.ceil(len/res));
+  const trace=[]; let cur=30, lastDist=0, evIdx=0;
+  const NOISE_FLOOR=5;
+
+  for(let i=0;i<pts;i++){
+    const dist=i*res;
+    let power=cur-atten*(dist-lastDist);
+    while(evIdx<events.length&&events[evIdx].distance<=dist+res/2){
+      const ev=events[evIdx], t=EVENT_TYPES[ev.type]||EVENT_TYPES.splice;
+      power+=-Math.abs(ev.loss); cur=power-=atten*(dist-Math.max(lastDist,ev.distance)); lastDist=ev.distance;
+      if(t.hasRefl&&ev.reflectance<0){
+        const h=Math.min(8,Math.max(0.5,-ev.reflectance/8));
+        power+=h*Math.exp(-Math.pow((dist-ev.distance)/(res*3),2));
+      }
+      evIdx++;
+    }
+    const end=events.find(e=>e.type==='end');
+    if(end&&dist>end.distance+0.002){
+      power=NOISE_FLOOR+(power-NOISE_FLOOR)*Math.exp(-(dist-end.distance)*50);
+      power=2.5+Math.sin(dist*1500)*2.5+gaussRand()*1;
+    }else{
+      power+=gaussRand()*noise;
+    }
+    trace.push({distance:parseFloat(dist.toFixed(6)),power:parseFloat(Math.max(-85,power).toFixed(4))});
+  }
+  return trace;
+}
+
+function renderFakeTrace() {
+  const c=getThemeColors(), trace=genTrace();
+  const labels=fmtDistAxis(trace.map(p=>p.distance)), data=trace.map(p=>p.power);
+  const markers=state.fakeEvents.map(e=>{
+    const t=EVENT_TYPES[e.type]||EVENT_TYPES.splice;
+    return {distance:e.distance,refl:t.hasRefl&&e.reflectance<0,label:t.label};
+  });
+  if(state.fakeChart)state.fakeChart.destroy();
+  state.fakeChart=new Chart(document.getElementById('fakeChart'), chartConfig(labels,data,markers,c, trace.map(p=>p.distance)));
+
+  const tl=trace.length>0?trace[0].power-trace[trace.length-1].power:0;
+  const end=state.fakeEvents.find(e=>e.type==='end');
+  document.getElementById('fakeSummary').innerHTML=[
+    ['Total Length',(trace.length*parseFloat(document.getElementById('traceResolution').value)/1000).toFixed(3)+' km'],
+    ['Data Points',trace.length],['Events',state.fakeEvents.length],
+    ['Total Loss (approx)',Math.max(0,tl).toFixed(2)+' dB'],
+    ['End Type',end?(EVENT_TYPES[end.type]||{label:'—'}).label:'—'],
+  ].map(([l,v])=>'<div class="param-item"><div class="param-label">'+l+'</div><div class="param-value">'+v+'</div></div>').join('');
+}
+
+document.getElementById('exportPdf3').addEventListener('click',async()=>{
+  const b=document.getElementById('exportPdf3'); b.disabled=true;b.textContent='Generating...';
+  try{
+    const trace=genTrace();
+    const len=parseFloat(document.getElementById('fiberLength').value);
+    const atten=parseFloat(document.getElementById('fiberAtten').value);
+    const noise=parseFloat(document.getElementById('noiseLevel').value);
+    const res=parseFloat(document.getElementById('traceResolution').value);
+    const params=[
+      ['Fiber Length',len+' km'],['Attenuation',atten+' dB/km'],['Noise Level',noise],
+      ['Resolution',res+' m'],['Events',state.fakeEvents.length],['Data Points',trace.length],
+    ].map(([l,v])=>({label:l,value:v}));
+    const events=state.fakeEvents.map(e=>{
+      const t=EVENT_TYPES[e.type]||EVENT_TYPES.splice;
+      return{distance:e.distance,type:t.label,loss:e.type==='end'||e.type==='break'?'—':e.loss+' dB',refl:t.hasRefl&&e.reflectance<0?e.reflectance+' dB':'—'};
+    });
+    const pdf=await generatePdf('fake_trace',trace,params,events,'Fake OTDR Trace');
+    pdf.save('fake_otdr_trace.pdf');
+  }catch(e){alert('PDF failed: '+e.message)}
+  b.disabled=false;b.textContent='Export as PDF';
+});
+
+// === Init ===
+if(state.isDark){document.documentElement.setAttribute('data-theme','dark');document.getElementById('themeBtn').innerHTML='\u2600 Light Mode';}
+// Load default preset
+state.fakeEvents=genLiveFiber();
+const md=Math.max(...state.fakeEvents.map(e=>e.distance));
+const l=Math.min(Math.ceil(md*1.1*100)/100,50);
+document.getElementById('fiberLength').value=l; document.getElementById('lengthVal').textContent=l.toFixed(2);
+document.getElementById('presetSelect').value='liveFiber';
+renderEventsEditor();
+renderFakeTrace();
+console.log('OTDR Tool loaded. sor-reader v'+(VERSION||'1.0.0'));
+</script>
+</body>
+</html>
